@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BTU CONNECT | Amit Official</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg: #030508; --surface: #0a0d12; --border: rgba(255,255,255,0.08);
+            --accent: #3b82f6; --accent2: #6366f1; --gold: #f59e0b;
+            --text: #f1f5f9; --muted: #64748b; --danger: #ff4d4d; --success: #00ff88;
+        }
+
+        /* HARD LOCK for Suspicious Connections */
+        body.system-locked { overflow: hidden; pointer-events: none; }
+        
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; -webkit-tap-highlight-color: transparent; }
+
+        /* --- VPN DETECTION OVERLAY --- */
+        #vpn-guard { 
+            position: fixed; inset: 0; background: var(--bg); z-index: 99999; 
+            display: none; flex-direction: column; align-items: center; justify-content: center; 
+            text-align: center; padding: 2.5rem; pointer-events: auto;
+        }
+        .shield-icon { font-size: 4rem; margin-bottom: 1.5rem; filter: drop-shadow(0 0 15px var(--danger)); }
+        #vpn-guard h1 { font-family: 'Syne'; margin-bottom: 1rem; color: #fff; }
+        #vpn-guard p { color: var(--muted); max-width: 400px; line-height: 1.6; }
+
+        /* --- HEADER & NAVIGATION --- */
+        .app-header { position: sticky; top: 0; background: rgba(3,5,8,0.8); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); z-index: 1000; padding: 1.2rem; text-align: center; }
+        .logo { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 800; }
+        .logo span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .tab-bar { max-width: 600px; margin: 0 auto; padding: 0.8rem; display: flex; gap: 0.6rem; position: sticky; top: 65px; z-index: 999; background: var(--bg); }
+        .tab { position: relative; flex: 1; padding: 0.85rem; border-radius: 14px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: 0.3s; }
+        .tab.active { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3); }
+        .tab-dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: var(--danger); border-radius: 50%; display: none; }
+
+        /* --- FEED & CARDS --- */
+        .content-area { max-width: 650px; margin: 0 auto; padding: 1.5rem; padding-bottom: 100px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 1.5rem; margin-bottom: 1.2rem; transition: 0.3s; position: relative; }
+        .card:active { transform: scale(0.98); }
+        .card-meta { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: var(--muted); margin-bottom: 0.8rem; text-transform: uppercase; }
+        .card-body h3 { font-family: 'Syne'; margin-bottom: 0.5rem; font-size: 1.15rem; }
+        .card-body p { color: rgba(255,255,255,0.8); line-height: 1.6; font-size: 0.95rem; }
+        .role-badge { font-size: 9px; font-weight: 900; padding: 4px 10px; border-radius: 6px; margin-top: 1.2rem; display: inline-block; background: rgba(255,255,255,0.05); color: var(--muted); }
+
+        /* --- OVERLAYS & MODALS --- */
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); display: none; z-index: 5000; align-items: center; justify-content: center; }
+        .bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-radius: 30px 30px 0 0; padding: 2.5rem 1.5rem; transform: translateY(100%); transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1); z-index: 5001; border-top: 1px solid var(--border); }
+        .bottom-sheet.active { transform: translateY(0); }
+
+        input, select, textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 14px; color: #fff; padding: 1.1rem; margin-bottom: 1rem; outline: none; font-family: inherit; font-size: 1rem; }
+        .btn-p { width: 100%; padding: 1.2rem; background: var(--accent); border: none; border-radius: 16px; color: #fff; font-weight: 800; font-family: 'Syne'; cursor: pointer; font-size: 1rem; }
+        .btn-p:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .gps-status { font-size: 11px; font-weight: 800; text-align: center; padding: 0.8rem; border-radius: 12px; margin-bottom: 1.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); }
+
+        #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 99999; display: flex; flex-direction: column; gap: 8px; width: 90%; max-width: 380px; }
+        .toast { background: var(--surface); border: 1px solid var(--border); padding: 12px 20px; border-radius: 12px; font-size: 0.85rem; font-weight: 700; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; animation: tIn 0.3s ease forwards; }
+        @keyframes tIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="vpn-guard">
+        <div class="shield-icon">⚠️</div>
+        <h1 id="guard-title">Network Restricted</h1>
+        <p id="guard-msg">Please disconnect VPN/Proxy. Use your original mobile carrier (Airtel, Jio, VI) to access BTU Connect.</p>
+        <button onclick="location.reload()" class="btn-p" style="margin-top: 2rem; width: auto; padding: 1rem 2rem;">Retry Connection</button>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <header class="app-header">
+        <div class="logo">BTU <span>CONNECT</span></div>
+    </header>
+
+    <nav class="tab-bar">
+        <button class="tab active" onclick="nav('UPDATES', this)">Updates<span id="feed-dot" class="tab-dot"></span></button>
+        <button class="tab" onclick="openGate('STUDENT')">Student</button>
+        <button class="tab" onclick="openGate('TEACHER')">Teacher</button>
+        <button class="tab" onclick="openGate('ADMIN')">Admin</button>
+    </nav>
+
+    <main id="wall-feed" class="content-area"></main>
+    <main id="wall-admin" class="content-area" style="display:none;"></main>
+
+    <div id="modal-overlay" class="overlay" onclick="closeSheet(event)">
+        <div id="post-sheet" class="bottom-sheet">
+            <div style="width:45px; height:4px; background:rgba(255,255,255,0.1); border-radius:10px; margin:-15px auto 20px;"></div>
+            <h2 style="font-family:'Syne'; margin-bottom:1.2rem;">Post Update</h2>
+            <div id="geo-line" class="gps-status">📡 Initializing GPS Scan...</div>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="f-name" placeholder="Your Name">
+                <input type="text" id="f-dept" placeholder="Dept">
+            </div>
+            <select id="f-cat">
+                <option value="GENERAL">General Bulletin</option>
+                <option value="EXAMS">Exams & Results</option>
+                <option value="EVENT">Campus Event</option>
+            </select>
+            <textarea id="f-msg" rows="4" placeholder="Write your message..."></textarea>
+            <button id="f-btn" class="btn-p" onclick="sendData()">Publish Broadcast</button>
+        </div>
+    </div>
+
+    <div id="gate-overlay" class="overlay">
+        <div style="background:var(--surface); padding:2.5rem; border-radius:32px; width:92%; max-width:380px; border:1px solid var(--border); box-shadow: 0 40px 80px rgba(0,0,0,0.8);">
+            <h2 id="gate-title" style="font-family:'Syne'; text-align:center; margin-bottom:2rem;">Identity Lock</h2>
+            <input type="password" id="gate-pin" placeholder="Enter Security PIN" style="text-align: center; letter-spacing: 4px;">
+            <button onclick="submitGate()" class="btn-p">Verify Access</button>
+            <button onclick="hideGate()" style="background:none; border:none; color:var(--muted); width:100%; margin-top:1.5rem; font-weight:700; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <footer style="font-size: 10px; text-align: center; color: #666; margin-top: 20px;">
+    Made by Amit Choudhary & Deepak
+</footer>
+
+</body>
+</html>
